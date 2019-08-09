@@ -63,7 +63,7 @@ ENDC = '\033[0m'
 
 # filter and prettify output
 if args.threshold is not None:
-    scored = [s for s in scored if s[1] >= threshold]
+    scored = [s for s in scored if s[1] >= args.threshold]
 if args.number is not None:
     scored = scored[:args.number]
 # prettify
