@@ -1,0 +1,84 @@
+#!/usr/bin/env python
+
+import sys
+from functools import reduce
+from wanakana import is_kana, is_kanji
+
+def parse_to_sentences(text, sentence_enders='。！？\n'):
+    """Takes Japanese text and returns a list of the sentences within the text."""
+    pos = 0
+    sentences = []
+    for i in range(len(text)):
+        if (i+1 == len(text)) or (text[i] in sentence_enders and (is_kana(text[i+1]) or is_kanji(text[i+1]) or text[i+1].isalpha() or text[i+1].isnumeric() or text[i+1] in '\n\t')):
+            sentences.append(text[pos:i+1])
+            pos = i+1
+    return [s for s in sentences if '\n' not in s]
+
+def score_sentence(sentence, target_words):
+    """Takes a single sentence and returns an integer indicating how many words in target_words are in the sentence."""
+    return reduce(lambda a, v: a + sentence.count(v), target_words, 0)
+
+def score_sentences(sentences, target_words):
+    """Takes a list of sentences and returns a list of (sentence, score) tuples"""
+    return [(sentence, score_sentence(sentence, target_words)) for sentence in sentences]
+
+import argparse
+
+parser = argparse.ArgumentParser(description='tool to find the sentences with the most occurences of particular words')
+parser.add_argument('-i', '--inp', help='Input text; either a filename or - to read from stdin')
+parser.add_argument('-w', '--words', help='Target words to be used for scoring; either a filename (for a file with a word on each line) or - to read from stdin. If both the input text and word list are being read from stdin, place the token ==WORDS== on a line before the first word to indicate the start of the word list')
+parser.add_argument('-n', '--number', help='Number of sentences to show (shows all by default)', type=int)
+parser.add_argument('-t', '--threshold', help='Minimum score required for a sentence to be shown', type=int)
+parser.add_argument('-o', '--out', help='File to print output to')
+parser.add_argument('--no-score', help='Only show the sentences', dest='score', default=True, action='store_false')
+
+args = parser.parse_args()
+in_text = ''
+target_words = [] 
+
+# parse text and words
+if args.inp == '-' and args.words == '-':
+    inp = sys.stdin.read()
+    in_text, target_words = inp.split('==WORDS==')
+    target_words = target_words.strip('\n').split('\n')
+else:
+    if args.inp == '-':
+        in_text = sys.stdin.read()
+    else:
+        in_text = open(args.inp, 'r').read()
+
+    if args.words == '-':
+        target_words = sys.stdin.read().rstrip('\n').split('\n')
+    else:
+        target_words = open(args.words, 'r').read().rstrip('\n').split('\n')
+
+# calculate scores
+scored = score_sentences(parse_to_sentences(in_text), target_words)
+scored = sorted(scored, key=lambda a: -a[1])
+
+OKBLUE= '\033[94m'
+OKGREEN = '\033[92m'
+BOLD = '\033[1m'
+ENDC = '\033[0m'
+
+# filter and prettify output
+if args.threshold is not None:
+    scored = [s for s in scored if s[1] >= threshold]
+if args.number is not None:
+    scored = scored[:args.number]
+# prettify
+for i, s in enumerate(scored):
+    o = s[0]
+    for w in target_words:
+        o = o.replace(w, OKGREEN+BOLD+w+ENDC)
+    scored[i] = (o, s[1])
+if args.score is False:
+    scored = [s[0] for s in scored]
+else:
+    scored = [f'{OKBLUE}[{s[1]}]{ENDC}\tー\t{s[0]}' for s in scored]
+
+# print/write output
+if args.out is not None:
+    open(args.out, 'w').write('\n'.join(scored))
+else:
+    print('\n'.join(scored).rstrip('\n'))
